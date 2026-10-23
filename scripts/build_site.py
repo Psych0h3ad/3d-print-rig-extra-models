@@ -23,9 +23,13 @@ MACHINES = {
 GPL_SHA256 = '3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986'
 RUNTIME_PATHS = {f'elegoo-assets/{slug}/{name}' for slug in MACHINES
                  for name in ('assembly_manifest.json', 'machine_profile.json', 'model.glb.gz')}
+RUNTIME_PATHS.update(f'elegoo-assets/{slug}/zero-facets-v1/{name}'
+                     for slug in ('neptune3pro','neptune3plus')
+                     for name in ('assembly_manifest.json','machine_profile.json','model.glb.gz'))
 SOURCE_PATHS = {f'elegoo-sources/{name}' for name in (
     'LICENSE', 'README.md', 'NOTICE.txt', 'MODIFICATIONS.md', 'SOURCES.json',
-    'models.json', 'requirements.txt', 'tools/extract_3dxml.py', 'tools/extract_3dxml_bounded.py', 'tools/rebuild_models.py')}
+    'models.json', 'requirements.txt', 'tools/extract_3dxml.py', 'tools/extract_3dxml_bounded.py', 'tools/rebuild_models.py',
+    'tools/filter_elegoo_zero_facets.py', 'ZERO_FACETS.md')}
 for _slug, (_filename, _) in MACHINES.items():
     SOURCE_PATHS.update((f'elegoo-sources/{_slug}/source/{_filename}',
                         f'elegoo-sources/{_slug}/LICENSE',

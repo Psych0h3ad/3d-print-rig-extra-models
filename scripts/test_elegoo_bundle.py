@@ -93,9 +93,9 @@ class Cases(unittest.TestCase):
 class ActualBundles(Cases):
     def test_exact_both_bundles_every_exported_byte(self):
         self.assertEqual(self.old_pin['files'], 22)
-        self.assertEqual(self.new_pin['files'], 28)
+        self.assertEqual(self.new_pin['files'], 36)
         result = self.build()
-        self.assertEqual(result['files'], 50)
+        self.assertEqual(result['files'], 58)
         expected = {'ASSET_BUNDLE.json', 'ELEGOO_ASSET_BUNDLE.json'}
         for archive in (ARGS.assets, ARGS.elegoo_assets):
             with zipfile.ZipFile(archive) as source:
