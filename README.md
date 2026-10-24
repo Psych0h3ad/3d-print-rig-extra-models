@@ -9,8 +9,8 @@ is available in full. These references are intended for room planning.
 
 The builder always includes the original and ELEGOO bundles. When
 `site/LAYOUT_ASSET_BUNDLE.json` is present, it also requires the layout equipment
-bundle. An invalid pin or unavailable bundle fails the build. No layout pin or
-equipment models are included in this checkout yet.
+bundle. An invalid pin or unavailable bundle fails the build. The layout pin
+selects the four exterior reference transfers and shared preview data.
 
 The optional ZIP contains `VIEWER_ASSETS.json` and exactly these six assets:
 
