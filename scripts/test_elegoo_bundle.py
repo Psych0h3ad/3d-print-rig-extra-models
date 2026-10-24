@@ -248,7 +248,7 @@ class Failures(Cases):
         with self.assertRaises(FileNotFoundError):
             self.build(new=self.root / 'missing.zip')
         with self.assertRaisesRegex(ValueError, 'no fallback'):
-            builder.acquire(self.new_pin, None, self.root, 'download.zip')
+            builder.acquire({**self.new_pin, 'url': None}, None, self.root, 'download.zip')
 
     def test_no_existing_body_count_waiver(self):
         self.old_pin['files'] = 21

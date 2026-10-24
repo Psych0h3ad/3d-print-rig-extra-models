@@ -1,10 +1,13 @@
-"""Build both independently checksum-pinned static bundles. Modified 2026-10-22."""
+"""Build independently checksum-pinned static asset bundles."""
 import argparse
+import gzip
 import hashlib
 import json
+import math
 import os
 import re
 import stat
+import struct
 import tempfile
 import urllib.parse
 import urllib.request
@@ -14,6 +17,21 @@ from pathlib import Path, PurePosixPath
 ROOT = Path(__file__).resolve().parents[1]
 MAX_SITE_BYTES = 900_000_000
 MAX_MANIFEST_BYTES = 8_000_000
+LAYOUT_PIN = 'LAYOUT_ASSET_BUNDLE.json'
+LAYOUT_DIRECTORY = 'layout/assets/equipment/u1-exterior'
+LAYOUT_MODELS = frozenset(f'{LAYOUT_DIRECTORY}/{name}.glb.gz' for name in (
+    'U1_exterior_standalone_loaded', 'U1_exterior_docked',
+    'PopStationMini_empty', 'PopStationMini_loaded'))
+LAYOUT_NOTICE = f'{LAYOUT_DIRECTORY}/NOTICE.txt'
+LAYOUT_PREVIEW = f'{LAYOUT_DIRECTORY}/U1_preview_geometry.json.gz'
+LAYOUT_PATHS = LAYOUT_MODELS | {LAYOUT_NOTICE, LAYOUT_PREVIEW}
+MAX_LAYOUT_BYTES = 64_000_000
+MAX_LAYOUT_ARCHIVE_BYTES = 65_000_000
+MAX_LAYOUT_MODEL_BYTES = 16 * 1024 * 1024
+MAX_LAYOUT_GLB_BYTES = 16 * 1024 * 1024
+MAX_LAYOUT_MANIFEST_BYTES = 65_536
+MAX_LAYOUT_NOTICE_BYTES = 4_096
+MAX_LAYOUT_PREVIEW_BYTES = 16 * 1024 * 1024
 RELEASE_PREFIX = 'https://github.com/Psych0h3ad/3d-print-rig-extra-models/releases/download/'
 MACHINES = {
     'neptune3': ('Neptune 3.3DXML', '13df2d1e535c8e1bde689511d96693f2ae3229b6d295a7b27b18df0891cba58a'),
@@ -54,6 +72,37 @@ def json_bytes(data):
     return json.loads(data, object_pairs_hook=unique_object)
 
 
+def finite_json_bytes(data):
+    def invalid_constant(value):
+        raise ValueError('Non-finite JSON number')
+    document = json.loads(data, object_pairs_hook=unique_object, parse_constant=invalid_constant)
+    pending = [document]
+    while pending:
+        value = pending.pop()
+        if isinstance(value, dict):
+            pending.extend(value.values())
+        elif isinstance(value, list):
+            pending.extend(value)
+        elif isinstance(value, float) and not math.isfinite(value):
+            raise ValueError('Non-finite JSON number')
+    return document
+
+
+def canonical_json(value):
+    return (json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=True) + '\n').encode('ascii')
+
+
+def read_bounded(path, limit):
+    path = Path(path)
+    if path.is_symlink() or (hasattr(path, 'is_junction') and path.is_junction()):
+        raise ValueError('Unsupported linked file')
+    with path.open('rb') as stream:
+        data = stream.read(limit + 1)
+    if len(data) > limit:
+        raise ValueError('Oversized bundle pin')
+    return data
+
+
 def valid_count(value, positive=False):
     return type(value) is int and value >= (1 if positive else 0)
 
@@ -63,15 +112,27 @@ def valid_sha(value):
 
 
 def load_pin(path):
-    raw = Path(path).read_bytes()
-    if len(raw) > MAX_MANIFEST_BYTES:
-        raise ValueError('Oversized bundle pin')
+    raw = read_bounded(path, MAX_MANIFEST_BYTES)
     info = json_bytes(raw)
-    if (type(info.get('version')) is not int or info['version'] != 1
+    if (not isinstance(info, dict) or type(info.get('version')) is not int or info['version'] != 1
             or not all(valid_count(info.get(k), True) for k in ('bytes', 'files', 'site_bytes'))
-            or info['site_bytes'] > MAX_SITE_BYTES or not valid_sha(info.get('sha256'))):
+            or max(info['bytes'], info['site_bytes']) > MAX_SITE_BYTES
+            or info['files'] > 10_000 or not valid_sha(info.get('sha256'))):
         raise ValueError('Invalid bundle pin')
     return info, raw
+
+
+def check_layout_pin(info):
+    fields = {'version', 'url', 'bytes', 'sha256', 'files', 'site_bytes',
+              'manifest_bytes', 'manifest_sha256'}
+    if (set(info) != fields or info['files'] != len(LAYOUT_PATHS)
+            or info['bytes'] > MAX_LAYOUT_ARCHIVE_BYTES or info['site_bytes'] > MAX_LAYOUT_BYTES
+            or not valid_count(info['manifest_bytes'], True)
+            or info['manifest_bytes'] > MAX_LAYOUT_MANIFEST_BYTES
+            or not valid_sha(info['manifest_sha256'])):
+        raise ValueError('Invalid layout bundle pin')
+    if info['url'] is not None:
+        check_release_url(info['url'])
 
 
 def asset_path(name):
@@ -90,9 +151,72 @@ def asset_path(name):
 
 def allowed_asset(name, kind):
     path = asset_path(name)
+    if kind == 'layout':
+        return name in LAYOUT_PATHS
     if path.suffix.lower() in ('.3dxml', '.py'):
         return kind == 'elegoo' and name in SOURCE_PATHS
     return path.suffix in ('.json', '.gz', '.html', '.txt', '.md') or path.name == 'LICENSE' or name == '.nojekyll'
+
+
+def check_layout_text(text, *, multiline=False):
+    if any(not c.isprintable() and not (multiline and c == '\n') for c in text):
+        raise ValueError('Invalid layout text control character')
+    # Match concrete local paths without treating ordinary URL slashes as paths.
+    if re.search(r'(?i)\b[a-z]:[\\/]|\\\\|(?<!:)//[\w.-]+[\\/]|\bfile:[\\/]'
+                 r'|(?<![\w])(?:~[\\/]|/(?:Users|home|private|mnt|tmp|var|Volumes)/)'
+                 r'|%USERPROFILE%|\$HOME[\\/]', text):
+        raise ValueError('Invalid layout text local path')
+
+
+def check_layout_notice(data):
+    if not 0 < len(data) <= MAX_LAYOUT_NOTICE_BYTES:
+        raise ValueError('Invalid layout NOTICE size')
+    text = data.decode('utf-8')
+    if not text.strip():
+        raise ValueError('Invalid layout NOTICE text')
+    check_layout_text(text, multiline=True)
+
+
+def check_layout_model(path):
+    """Bound gzip expansion and check the GLB container without changing its bytes."""
+    if not 0 < Path(path).stat().st_size <= MAX_LAYOUT_MODEL_BYTES:
+        raise ValueError('Invalid encoded layout GLB size')
+    with gzip.open(path, 'rb') as stream:
+        header = stream.read(12)
+        if len(header) != 12:
+            raise ValueError('Invalid layout GLB header')
+        magic, version, length = struct.unpack('<4sII', header)
+        if magic != b'glTF' or version != 2 or not 20 <= length <= MAX_LAYOUT_GLB_BYTES:
+            raise ValueError('Invalid layout GLB header or size')
+        total = len(header)
+        for data in iter(lambda: stream.read(1024 * 1024), b''):
+            total += len(data)
+            if total > length:
+                raise ValueError('Unexpected expanded layout GLB size')
+        if total != length:
+            raise ValueError('Layout GLB size mismatch')
+
+
+def check_layout_preview(path):
+    """Read a bounded JSON dictionary as data, without interpreting its strings."""
+    if not 0 < Path(path).stat().st_size <= MAX_LAYOUT_PREVIEW_BYTES:
+        raise ValueError('Invalid encoded layout preview size')
+    with gzip.open(path, 'rb') as stream:
+        raw = stream.read(MAX_LAYOUT_PREVIEW_BYTES + 1)
+    if not 0 < len(raw) <= MAX_LAYOUT_PREVIEW_BYTES:
+        raise ValueError('Invalid expanded layout preview size')
+    document = finite_json_bytes(raw.decode('utf-8'))
+    if not isinstance(document, dict):
+        raise ValueError('Layout preview must be a JSON dictionary')
+    return document
+
+
+def layout_asset_limit(name):
+    if name == LAYOUT_NOTICE:
+        return MAX_LAYOUT_NOTICE_BYTES
+    if name == LAYOUT_PREVIEW:
+        return MAX_LAYOUT_PREVIEW_BYTES
+    return MAX_LAYOUT_MODEL_BYTES
 
 
 def check_elegoo(records, archive):
@@ -115,20 +239,56 @@ def check_elegoo(records, archive):
 
 def inspect_archive(archive, info, kind):
     archive = Path(archive)
-    if archive.stat().st_size != info['bytes'] or sha(archive) != info['sha256']:
+    if archive.is_symlink():
+        raise ValueError('Unsupported bundle file')
+    archive_stat = archive.stat()
+    if not stat.S_ISREG(archive_stat.st_mode):
+        raise ValueError('Unsupported bundle file')
+    if kind == 'layout':
+        check_layout_pin(info)
+    if archive_stat.st_size != info['bytes'] or sha(archive) != info['sha256']:
         raise ValueError('Bundle checksum mismatch')
     with zipfile.ZipFile(archive) as source:
         entries = source.infolist()
         names = [entry.filename for entry in entries]
         if len(names) != len(set(names)) or 'VIEWER_ASSETS.json' not in names:
             raise ValueError('Bundle inventory mismatch')
-        if source.getinfo('VIEWER_ASSETS.json').file_size > MAX_MANIFEST_BYTES:
+        if kind == 'layout' and (len(entries) != len(LAYOUT_PATHS) + 1 or source.comment):
+            raise ValueError('Layout bundle inventory or ZIP comment mismatch')
+        for entry in entries:
+            asset_path(entry.filename)
+            mode = stat.S_IFMT(entry.external_attr >> 16)
+            if (entry.orig_filename != entry.filename or entry.is_dir()
+                    or mode not in (0, stat.S_IFREG) or entry.flag_bits & 1
+                    or entry.external_attr & 0x10):
+                raise ValueError('Unsupported ZIP entry')
+            if kind == 'layout' and (entry.compress_type != zipfile.ZIP_STORED
+                                      or entry.comment or entry.extra):
+                raise ValueError('Unsupported layout ZIP entry')
+        manifest_entry = source.getinfo('VIEWER_ASSETS.json')
+        if manifest_entry.file_size > MAX_MANIFEST_BYTES:
             raise ValueError('Oversized asset manifest')
-        records = json_bytes(source.read('VIEWER_ASSETS.json'))['files']
+        if kind == 'layout' and manifest_entry.file_size != info['manifest_bytes']:
+            raise ValueError('Layout manifest size mismatch')
+        raw_manifest = source.read('VIEWER_ASSETS.json')
+        if kind == 'layout' and hashlib.sha256(raw_manifest).hexdigest() != info['manifest_sha256']:
+            raise ValueError('Layout manifest checksum mismatch')
+        manifest = json_bytes(raw_manifest)
+        if not isinstance(manifest, dict):
+            raise ValueError('Invalid asset manifest')
+        if kind == 'layout' and (set(manifest) != {'version', 'files'}
+                                 or type(manifest.get('version')) is not int or manifest['version'] != 1
+                                 or raw_manifest != canonical_json(manifest)):
+            raise ValueError('Invalid canonical layout manifest')
+        records = manifest.get('files')
         if not isinstance(records, list) or len(records) != info['files']:
             raise ValueError('Bundle inventory mismatch')
         indexed, total = {}, 0
         for row in records:
+            if not isinstance(row, dict) or 'path' not in row:
+                raise ValueError('Invalid asset record')
+            if kind == 'layout' and set(row) != {'path', 'bytes', 'sha256'}:
+                raise ValueError('Invalid layout asset record')
             name = row['path']
             if not allowed_asset(name, kind) or name == 'VIEWER_ASSETS.json':
                 raise ValueError('Unsupported asset type or reserved path')
@@ -136,6 +296,8 @@ def inspect_archive(archive, info, kind):
                 raise ValueError('Invalid asset size or checksum')
             if name in indexed:
                 raise ValueError('Duplicate asset record')
+            if kind == 'layout' and not 0 < row['bytes'] <= layout_asset_limit(name):
+                raise ValueError('Invalid layout asset size')
             indexed[name] = row
             total += row['bytes']
             if total > MAX_SITE_BYTES:
@@ -143,12 +305,15 @@ def inspect_archive(archive, info, kind):
         if set(names) != set(indexed) | {'VIEWER_ASSETS.json'} or total != info['site_bytes']:
             raise ValueError('Bundle inventory or site size mismatch')
         for entry in entries:
-            asset_path(entry.filename)
-            mode = stat.S_IFMT(entry.external_attr >> 16)
-            if entry.is_dir() or mode not in (0, stat.S_IFREG) or entry.flag_bits & 1:
-                raise ValueError('Unsupported ZIP entry')
             if entry.filename != 'VIEWER_ASSETS.json' and entry.file_size != indexed[entry.filename]['bytes']:
                 raise ValueError('Asset size mismatch')
+        check_collisions([records], ['VIEWER_ASSETS.json'])
+        if kind == 'layout':
+            if set(indexed) != LAYOUT_PATHS:
+                raise ValueError('Layout inventory incomplete or unexpected')
+            if [row['path'] for row in records] != sorted(LAYOUT_PATHS):
+                raise ValueError('Layout records must be sorted')
+            check_layout_notice(source.read(LAYOUT_NOTICE))
     if kind == 'elegoo':
         check_elegoo(records, archive)
     return records
@@ -156,7 +321,7 @@ def inspect_archive(archive, info, kind):
 
 def check_collisions(record_sets, pin_names):
     names = [asset_path(name).as_posix().casefold() for name in pin_names]
-    names += [row['path'].casefold() for records in record_sets for row in records]
+    names += [asset_path(row['path']).as_posix().casefold() for records in record_sets for row in records]
     if len(names) != len(set(names)):
         raise ValueError('Asset collision')
     all_names = set(names)
@@ -166,7 +331,7 @@ def check_collisions(record_sets, pin_names):
             raise ValueError('Asset file/directory collision')
 
 
-def extract_verified(archive, target, records):
+def extract_verified(archive, target, records, *, kind=None):
     with zipfile.ZipFile(archive) as source:
         for row in records:
             destination = target.joinpath(*asset_path(row['path']).parts)
@@ -183,6 +348,18 @@ def extract_verified(archive, target, records):
                     output.write(data)
             if size != row['bytes'] or digest.hexdigest() != row['sha256']:
                 raise ValueError('Asset checksum mismatch')
+            if kind == 'layout' and row['path'] in LAYOUT_MODELS:
+                check_layout_model(destination)
+            elif kind == 'layout' and row['path'] == LAYOUT_PREVIEW:
+                check_layout_preview(destination)
+
+
+def check_release_url(url):
+    if not isinstance(url, str) or not url.startswith(RELEASE_PREFIX):
+        raise ValueError('Missing or unexpected release URL; no fallback')
+    if re.fullmatch(r'[A-Za-z0-9_-][A-Za-z0-9._-]*/[A-Za-z0-9_-][A-Za-z0-9._-]*\.zip',
+                    url[len(RELEASE_PREFIX):]) is None:
+        raise ValueError('Unexpected release URL')
 
 
 def acquire(info, offline, folder, name):
@@ -206,13 +383,22 @@ def acquire(info, offline, folder, name):
     return archive
 
 
-def build(target, assets=None, elegoo_assets=None, *, manifest_dir=None):
+def build(target, assets=None, elegoo_assets=None, *, layout_assets=None, manifest_dir=None):
     target = Path(target).resolve()
     if target.exists():
         raise ValueError('Use a new output directory')
     manifest_dir = Path(manifest_dir) if manifest_dir else ROOT / 'site'
     specs = [('ASSET_BUNDLE.json', 'legacy', assets), ('ELEGOO_ASSET_BUNDLE.json', 'elegoo', elegoo_assets)]
+    if os.path.lexists(manifest_dir / LAYOUT_PIN):
+        specs.append((LAYOUT_PIN, 'layout', layout_assets))
+    elif layout_assets is not None:
+        raise ValueError('Layout archive requires LAYOUT_ASSET_BUNDLE.json')
     pins = [(name, kind, offline, *load_pin(manifest_dir / name)) for name, kind, offline in specs]
+    for _, kind, _, info, raw in pins:
+        if kind == 'layout':
+            if len(raw) > MAX_LAYOUT_MANIFEST_BYTES:
+                raise ValueError('Oversized layout bundle pin')
+            check_layout_pin(info)
     if sum(info['site_bytes'] + len(raw) for _, _, _, info, raw in pins) > MAX_SITE_BYTES:
         raise ValueError('Combined site exceeds size budget')
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -221,19 +407,20 @@ def build(target, assets=None, elegoo_assets=None, *, manifest_dir=None):
         for index, (name, kind, offline, info, raw) in enumerate(pins):
             archive = acquire(info, offline, folder, f'bundle-{index}.zip')
             records = inspect_archive(archive, info, kind)
-            bundles.append((archive, records, name, raw))
-        check_collisions([records for _, records, _, _ in bundles], [name for name, *_ in pins])
+            bundles.append((archive, records, name, raw, kind))
+        check_collisions([records for _, records, _, _, _ in bundles],
+                         ['ASSET_BUNDLE.json', 'ELEGOO_ASSET_BUNDLE.json', LAYOUT_PIN])
         stage = folder / 'site'
         stage.mkdir()
-        for archive, records, name, raw in bundles:
-            extract_verified(archive, stage, records)
+        for archive, records, name, raw, kind in bundles:
+            extract_verified(archive, stage, records, kind=kind)
             (stage / name).write_bytes(raw)
         total = sum(path.stat().st_size for path in stage.rglob('*') if path.is_file())
         if total > MAX_SITE_BYTES:
             raise ValueError('Site exceeds size budget')
         os.rename(stage, target)
-    result = {'files': sum(len(records) for _, records, _, _ in bundles), 'site_bytes': total, 'bundles': 2}
-    print(f"Built {result['files']} verified asset files from both bundles ({total:,} bytes).")
+    result = {'files': sum(len(records) for _, records, _, _, _ in bundles), 'site_bytes': total, 'bundles': len(bundles)}
+    print(f"Built {result['files']} verified asset files from {len(bundles)} bundles ({total:,} bytes).")
     return result
 
 
@@ -242,8 +429,9 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--assets', type=Path, help='Exact offline original ZIP')
     parser.add_argument('--elegoo-assets', type=Path, help='Exact offline second ELEGOO ZIP')
+    parser.add_argument('--layout-assets', type=Path, help='Exact offline optional layout equipment ZIP')
     args = parser.parse_args()
-    build(args.output, args.assets, args.elegoo_assets)
+    build(args.output, args.assets, args.elegoo_assets, layout_assets=args.layout_assets)
 
 
 if __name__ == '__main__':
