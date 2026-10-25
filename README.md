@@ -7,6 +7,11 @@ The U1 fixed plate's [source record](licenses/U1_BED_SOURCE_RECEIPT.json) identi
 its upstream contour and revision. The original [AGPL notice](licenses/Snapmaker_OrcaSlicer_LICENSE.txt)
 is available in full. These references are intended for room planning.
 
+Additional Layout reference versions are listed in `site/LAYOUT_REFERENCE_SET.json`.
+Each version has a directory derived from its exact file identities. The builder
+checks the complete directory, file sizes, hashes and model containers before
+publishing it alongside the original bundles, keeping existing model URLs available.
+
 The builder always includes the original and ELEGOO bundles. When
 `site/LAYOUT_ASSET_BUNDLE.json` is present, it also requires the layout equipment
 bundle. An invalid pin or unavailable bundle fails the build. The layout pin
