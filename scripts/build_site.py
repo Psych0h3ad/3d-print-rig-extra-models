@@ -18,6 +18,13 @@ ROOT = Path(__file__).resolve().parents[1]
 MAX_SITE_BYTES = 900_000_000
 MAX_MANIFEST_BYTES = 8_000_000
 LAYOUT_PIN = 'LAYOUT_ASSET_BUNDLE.json'
+REFERENCE_SET = 'LAYOUT_REFERENCE_SET.json'
+REFERENCE_NAMES = (
+    'U1_exterior_standalone_loaded.glb.gz', 'U1_exterior_docked.glb.gz',
+    'PopStationMini_empty.glb.gz', 'PopStationMini_loaded.glb.gz',
+    'U1_preview_geometry.json.gz', 'U1_exterior_notices.json', 'MOUNT_SPEC.json',
+    'POPSTATION_PUBLIC_MOUNT_RECEIPTS.json', 'POPSTATION_PUBLIC_MANUAL_RECEIPTS.json',
+    'U1_BED_SOURCE_RECEIPT.json', 'Snapmaker_OrcaSlicer_LICENSE.txt')
 LAYOUT_DIRECTORY = 'layout/assets/equipment/u1-exterior'
 LAYOUT_MODELS = frozenset(f'{LAYOUT_DIRECTORY}/{name}.glb.gz' for name in (
     'U1_exterior_standalone_loaded', 'U1_exterior_docked',
@@ -408,20 +415,117 @@ def build(target, assets=None, elegoo_assets=None, *, layout_assets=None, manife
             archive = acquire(info, offline, folder, f'bundle-{index}.zip')
             records = inspect_archive(archive, info, kind)
             bundles.append((archive, records, name, raw, kind))
-        check_collisions([records for _, records, _, _, _ in bundles],
-                         ['ASSET_BUNDLE.json', 'ELEGOO_ASSET_BUNDLE.json', LAYOUT_PIN])
+        reference_plan = load_versioned_reference_manifest(manifest_dir)
+        reference_records = ([{'path': str(PurePosixPath(reference_plan[0]['prefix']) / LAYOUT_DIRECTORY / record['name'])}
+                              for record in reference_plan[0]['files']] if reference_plan else [])
+        check_collisions([records for _, records, _, _, _ in bundles] + [reference_records],
+                         ['ASSET_BUNDLE.json', 'ELEGOO_ASSET_BUNDLE.json', LAYOUT_PIN, REFERENCE_SET])
         stage = folder / 'site'
         stage.mkdir()
         for archive, records, name, raw, kind in bundles:
             extract_verified(archive, stage, records, kind=kind)
             (stage / name).write_bytes(raw)
+        reference_files = copy_versioned_references(manifest_dir, stage)
         total = sum(path.stat().st_size for path in stage.rglob('*') if path.is_file())
         if total > MAX_SITE_BYTES:
             raise ValueError('Site exceeds size budget')
         os.rename(stage, target)
-    result = {'files': sum(len(records) for _, records, _, _, _ in bundles), 'site_bytes': total, 'bundles': len(bundles)}
+    result = {'files': sum(len(records) for _, records, _, _, _ in bundles) + reference_files, 'site_bytes': total, 'bundles': len(bundles)}
     print(f"Built {result['files']} verified asset files from {len(bundles)} bundles ({total:,} bytes).")
     return result
+
+
+def load_versioned_reference_manifest(manifest_dir):
+    """Validate the optional version pointer before selecting output paths."""
+    manifest = manifest_dir / REFERENCE_SET
+    if manifest.is_symlink() or getattr(manifest, 'is_junction', lambda: False)():
+        raise ValueError('Versioned reference links are forbidden')
+    if not os.path.lexists(manifest):
+        return None
+    raw = read_bounded(manifest, MAX_LAYOUT_MANIFEST_BYTES)
+    info = finite_json_bytes(raw)
+    if not isinstance(info, dict) or set(info) != {'version', 'prefix', 'files'} or type(info['version']) is not int or info['version'] != 1:
+        raise ValueError('Invalid versioned reference manifest')
+    records = info['files']
+    if not isinstance(records, list) or len(records) != len(REFERENCE_NAMES):
+        raise ValueError('Missing versioned reference files')
+    for record, name in zip(records, REFERENCE_NAMES):
+        if not isinstance(record, dict) or set(record) != {'name', 'bytes', 'sha256'} or record['name'] != name:
+            raise ValueError('Unexpected versioned reference file')
+        if not valid_count(record['bytes'], positive=True) or record['bytes'] > MAX_LAYOUT_MODEL_BYTES or not valid_sha(record['sha256']):
+            raise ValueError('Invalid versioned reference identity')
+    tag = hashlib.sha256(json.dumps(records, sort_keys=True, separators=(',', ':')).encode('ascii')).hexdigest()[:20]
+    if info['prefix'] != 'layout-references/' + tag:
+        raise ValueError('Versioned reference prefix differs from content identity')
+    return info, raw
+
+
+def copy_versioned_references(manifest_dir, target):
+    """Publish one exact version directory while retaining the root bundles."""
+    plan = load_versioned_reference_manifest(manifest_dir)
+    if plan is None:
+        return 0
+    info, raw = plan
+    records = info['files']
+    root = manifest_dir / info['prefix']
+    for parent in [manifest_dir, manifest_dir / 'layout-references', root]:
+        if parent.is_symlink() or getattr(parent, 'is_junction', lambda: False)():
+            raise ValueError('Versioned reference links are forbidden')
+    expected = {str(PurePosixPath(LAYOUT_DIRECTORY) / name) for name in REFERENCE_NAMES}
+    found = set()
+    for folder, dirs, files in os.walk(root, followlinks=False):
+        for name in [*dirs, *files]:
+            child = Path(folder) / name
+            if child.is_symlink() or getattr(child, 'is_junction', lambda: False)():
+                raise ValueError('Versioned reference links are forbidden')
+        found.update((Path(folder) / name).relative_to(root).as_posix() for name in files)
+    if found != expected:
+        raise ValueError('Versioned reference directory inventory differs')
+    if sum(r['bytes'] for r in records) > MAX_LAYOUT_BYTES:
+        raise ValueError('Versioned references exceed size budget')
+    total = 0
+    for record in records:
+        source = root / LAYOUT_DIRECTORY / record['name']
+        data = read_bounded(source, record['bytes'])
+        if len(data) != record['bytes'] or hashlib.sha256(data).hexdigest() != record['sha256']:
+            raise ValueError('Versioned reference bytes differ')
+        destination = target / info['prefix'] / LAYOUT_DIRECTORY / record['name']
+        if not destination.parent.resolve().is_relative_to(target.resolve()):
+            raise ValueError('Versioned reference destination escapes output')
+        for parent in [destination, *destination.parents]:
+            if parent.is_symlink() or getattr(parent, 'is_junction', lambda: False)():
+                raise ValueError('Versioned reference destination links are forbidden')
+            if parent == target:
+                break
+        if os.path.lexists(destination):
+            raise ValueError('Versioned reference destination collision')
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with destination.open('xb') as output:
+            output.write(data)
+        if record['name'].endswith('.glb.gz'):
+            check_layout_model(destination)
+        elif record['name'].endswith('.json.gz'):
+            check_layout_preview(destination)
+        elif record['name'].endswith('.json'):
+            pending = [finite_json_bytes(data)]
+            while pending:
+                value = pending.pop()
+                if isinstance(value, dict):
+                    pending.extend(value.keys())
+                    pending.extend(value.values())
+                elif isinstance(value, list):
+                    pending.extend(value)
+                elif isinstance(value, str):
+                    check_layout_text(value, multiline=True)
+        else:
+            check_layout_text(data.decode('utf-8'), multiline=True)
+        total += len(data)
+    pointer = target / REFERENCE_SET
+    if os.path.lexists(pointer):
+        raise ValueError('Versioned reference manifest destination collision')
+    with pointer.open('xb') as output:
+        output.write(raw)
+    return len(records) + 1
 
 
 def main():
