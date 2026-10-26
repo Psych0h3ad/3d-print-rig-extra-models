@@ -2,11 +2,12 @@ name: Deploy Additional machine models
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: github-pages
+  group: github-pages-${{ github.event_name == 'pull_request' && github.ref || 'deploy' }}
   cancel-in-progress: false
 jobs:
   build:
@@ -14,12 +15,17 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+      - run: python3 scripts/test_source_chunks.py
+      - run: python3 scripts/test_versioned_references.py
+      - run: python3 scripts/test_layout_bundle.py --work-dir fixture-work --report fixture-results.json
       - run: python3 scripts/build_site.py --output _site
       - uses: actions/upload-pages-artifact@v4
+        if: github.event_name != 'pull_request'
         with:
           path: _site
           retention-days: 1
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10

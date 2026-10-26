@@ -13,6 +13,7 @@ import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path, PurePosixPath
+import source_chunks
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_SITE_BYTES = 900_000_000
@@ -390,11 +391,14 @@ def acquire(info, offline, folder, name):
     return archive
 
 
-def build(target, assets=None, elegoo_assets=None, *, layout_assets=None, manifest_dir=None):
+def build(target, assets=None, elegoo_assets=None, *, layout_assets=None, source_assets=None, manifest_dir=None):
     target = Path(target).resolve()
     if target.exists():
         raise ValueError('Use a new output directory')
     manifest_dir = Path(manifest_dir) if manifest_dir else ROOT / 'site'
+    source_plan = source_chunks.load_plan(manifest_dir)
+    if source_assets is not None and source_plan is None:
+        raise ValueError('Source archive requires SOURCE_CHUNKS.json')
     specs = [('ASSET_BUNDLE.json', 'legacy', assets), ('ELEGOO_ASSET_BUNDLE.json', 'elegoo', elegoo_assets)]
     if os.path.lexists(manifest_dir / LAYOUT_PIN):
         specs.append((LAYOUT_PIN, 'layout', layout_assets))
@@ -406,7 +410,8 @@ def build(target, assets=None, elegoo_assets=None, *, layout_assets=None, manife
             if len(raw) > MAX_LAYOUT_MANIFEST_BYTES:
                 raise ValueError('Oversized layout bundle pin')
             check_layout_pin(info)
-    if sum(info['site_bytes'] + len(raw) for _, _, _, info, raw in pins) > MAX_SITE_BYTES:
+    source_bytes = sum(r['bytes'] for r in source_plan[0]['files']) + len(source_plan[1]) if source_plan else 0
+    if sum(info['site_bytes'] + len(raw) for _, _, _, info, raw in pins) + source_bytes > MAX_SITE_BYTES:
         raise ValueError('Combined site exceeds size budget')
     target.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='assets-build-', dir=target.parent) as temporary:
@@ -418,19 +423,22 @@ def build(target, assets=None, elegoo_assets=None, *, layout_assets=None, manife
         reference_plan = load_versioned_reference_manifest(manifest_dir)
         reference_records = ([{'path': str(PurePosixPath(reference_plan[0]['prefix']) / LAYOUT_DIRECTORY / record['name'])}
                               for record in reference_plan[0]['files']] if reference_plan else [])
-        check_collisions([records for _, records, _, _, _ in bundles] + [reference_records],
-                         ['ASSET_BUNDLE.json', 'ELEGOO_ASSET_BUNDLE.json', LAYOUT_PIN, REFERENCE_SET])
+        source_records = ([{'path': source_plan[0]['prefix'] + '/' + r['name']} for r in source_plan[0]['files']]
+                          if source_plan else [])
+        check_collisions([records for _, records, _, _, _ in bundles] + [reference_records, source_records],
+                         ['ASSET_BUNDLE.json', 'ELEGOO_ASSET_BUNDLE.json', LAYOUT_PIN, REFERENCE_SET, source_chunks.PIN])
         stage = folder / 'site'
         stage.mkdir()
         for archive, records, name, raw, kind in bundles:
             extract_verified(archive, stage, records, kind=kind)
             (stage / name).write_bytes(raw)
         reference_files = copy_versioned_references(manifest_dir, stage)
+        source_files = source_chunks.install(source_plan, folder, stage, source_assets)
         total = sum(path.stat().st_size for path in stage.rglob('*') if path.is_file())
         if total > MAX_SITE_BYTES:
             raise ValueError('Site exceeds size budget')
         os.rename(stage, target)
-    result = {'files': sum(len(records) for _, records, _, _, _ in bundles) + reference_files, 'site_bytes': total, 'bundles': len(bundles)}
+    result = {'files': sum(len(records) for _, records, _, _, _ in bundles) + reference_files + source_files, 'site_bytes': total, 'bundles': len(bundles)}
     print(f"Built {result['files']} verified asset files from {len(bundles)} bundles ({total:,} bytes).")
     return result
 
@@ -534,8 +542,9 @@ def main():
     parser.add_argument('--assets', type=Path, help='Exact offline original ZIP')
     parser.add_argument('--elegoo-assets', type=Path, help='Exact offline second ELEGOO ZIP')
     parser.add_argument('--layout-assets', type=Path, help='Exact offline optional layout equipment ZIP')
+    parser.add_argument('--source-assets', type=Path, help='Exact offline optional source-chunk ZIP')
     args = parser.parse_args()
-    build(args.output, args.assets, args.elegoo_assets, layout_assets=args.layout_assets)
+    build(args.output, args.assets, args.elegoo_assets, layout_assets=args.layout_assets, source_assets=args.source_assets)
 
 
 if __name__ == '__main__':

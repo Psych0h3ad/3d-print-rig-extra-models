@@ -52,6 +52,14 @@ It is included verbatim and requires wording review. Model gzip checks and GLB h
 establish geometry or mounting clearance.
 
 Build into a new directory with `python scripts/build_site.py --output _site`.
+
+Source assemblies can also provide `site/SOURCE_CHUNKS.json`. It pins a versioned
+archive containing exact geometry chunks, the source metadata, and author/license
+notices. The builder verifies the archive and each file, checks decoded gzip
+identities, and keeps existing model URLs available. The combined site size limit
+still applies. Use `--source-assets source-chunks.zip` for an offline build.
+Run its format and integrity checks with `python scripts/test_source_chunks.py`.
+
 For an offline build, supply `--assets original.zip --elegoo-assets elegoo.zip`
 and, when pinned, `--layout-assets equipment.zip`. Supplying a layout ZIP without
 its pin is an error. The current Pages build command needs no change.
