@@ -1,5 +1,5 @@
 {
-  "bytes": 81767015,
+  "bytes": 81767201,
   "files": [
     {
       "bytes": 1168597,
@@ -215,9 +215,9 @@
       "sha256": "26377ba9623c91786d51b406b321b5d08108875fc0e6555ced4c3ecf438d36fb"
     },
     {
-      "bytes": 25800,
+      "bytes": 25986,
       "name": "SOURCES.json",
-      "sha256": "3540fdb34d4be5b456b5c9a4ea4481d9f87b0b8dda637d626af5db8158dec463"
+      "sha256": "765c1e270882cfdcce4974e714bf61de24e27e4d36a1f4fb80bf1eff08257c5e"
     },
     {
       "bytes": 152,
@@ -321,7 +321,7 @@
   ],
   "model_sha256": "1dad2900f881eec60fa16255c98628489443ea453086c79b7d0d6ac0e3e6bf3f",
   "prefix": "source-assemblies/1dad2900f881eec60fa16255c98628489443ea453086c79b7d0d6ac0e3e6bf3f",
-  "sha256": "4f434435227fb5d0457410264f05c7e12c347e26fb486f9534f30b06a99fd7a1",
-  "url": "https://github.com/Psych0h3ad/3d-print-rig-extra-models/releases/download/e3ng-public-stl-v1-20261026/e3ng-source-chunks.zip",
+  "sha256": "31df0f2a3213db362bee325ba019dd42adfb81762ee12bc8988178ddeda7d815",
+  "url": "https://github.com/Psych0h3ad/3d-print-rig-extra-models/releases/download/e3ng-public-stl-v2-20261026/e3ng-source-chunks.zip",
   "version": 1
 }
