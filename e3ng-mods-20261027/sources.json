@@ -1,0 +1,110 @@
+{
+  "schema": "e3ng-public-modifications-v1",
+  "asset": {
+    "sha256": "9e4c35e44cbdeb41bc61871c336b76ed7fee317c17766ba57aa30e50f1169e15",
+    "bytes": 1458448,
+    "file": "mods-9e4c35e44cbdeb41bc61871c336b76ed7fee317c17766ba57aa30e50f1169e15.glb"
+  },
+  "parts": [
+    {
+      "e3ng_mod": "reinforced-base",
+      "source_sha256": "1791e7c7ee177b93f692a6ff0f8409204d7bc492fb45c06d4c827ede7b8ec052",
+      "source_url": "https://www.printables.com/model/1378246-ender-ng-3-v12-toolhead-base-with-large-reinforcem",
+      "source_file_id": "6207809",
+      "source_license": "CC-BY-NC-SA-4.0",
+      "source_author": "Synthead",
+      "upstream_author": "RH3D",
+      "supports_omitted": [],
+      "revision": {
+        "api_etag": "e57bffe0319f381d6d33469539ea358f-1",
+        "identity_note": "Public revision-specific source URL and API dates/etag preserved; no immutable Printables commit claimed.",
+        "modified": "2025-11-09T20:10:33.077812+09:00",
+        "created": "2025-11-09T20:10:33.077799+09:00",
+        "immutable_commit": null,
+        "file_id": "6207809"
+      },
+      "source_download_url": "https://files.printables.com/media/prints/f5d8d353-2159-4d7f-b24b-f10076df7ed1/stls/11116887_2a5adf6e-c7c0-41b5-b1e1-6d1d5cae49cc_13f20bbd-135e-4411-8cfd-2841b7d1a24b/ender-ng-3-v12-toolhead-base-with-large-reinforcement-bar.step",
+      "source_bytes": 1184135,
+      "mesh_triangles": 15188,
+      "mesh_deflection_mm": 0.06,
+      "mesh_angular_deflection_radians": 0.22,
+      "mesh_coordinate_transform": {
+        "R": [
+          [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "translation_mm": [
+          117.49999974998383,
+          -194.24999999999946,
+          26.000000405535815
+        ]
+      },
+      "mesh_indexing": "bit-identical position and flat normal only; no deleted native faces",
+      "modification": "Tessellated public author STEP and rigidly placed in the original E3NG v1.2 mounting coordinates.",
+      "license_url": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
+    },
+    {
+      "e3ng_mod": "cable-hole",
+      "source_sha256": "613f8abcd7898ab9d258d4284c6eeda60a4e1e309955a3a10c22d266a56620c6",
+      "source_url": "https://www.printables.com/model/1348213-ender-3-ng-v12-toolhead-cable-mount-with-cable-hol",
+      "source_file_id": "5672858",
+      "source_license": "CC-BY-NC-SA-4.0",
+      "source_author": "Synthead",
+      "upstream_author": "RH3D",
+      "supports_omitted": [],
+      "revision": {
+        "created": "2025-07-07T09:12:21.825629+09:00",
+        "immutable_commit": null,
+        "api_etag": "1e36d4de5bcc14527f0c19fe87a7f4a6-1",
+        "file_id": "5672858",
+        "modified": "2025-07-07T09:12:21.825639+09:00",
+        "identity_note": "Public revision-specific source URL and API dates/etag preserved; no immutable Printables commit claimed."
+      },
+      "source_download_url": "https://files.printables.com/media/prints/40bf0093-6a79-4137-b536-9d6a13726b45/stls/10173612_fe03af9c-2fdd-4909-8f9f-4f89596a4d40_12058da9-4ae6-47d1-8f22-8f17a18da3eb/ender-3-ng-v12-toolhead-cable-mount-with-cable-hole.step",
+      "source_bytes": 218283,
+      "mesh_triangles": 4222,
+      "mesh_deflection_mm": 0.06,
+      "mesh_angular_deflection_radians": 0.22,
+      "mesh_coordinate_transform": {
+        "R": [
+          [
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ]
+        ],
+        "translation_mm": [
+          124.1563062147637,
+          390.4558911703472,
+          211.62707851757253
+        ]
+      },
+      "mesh_indexing": "bit-identical position and flat normal only; no deleted native faces",
+      "modification": "Tessellated public author STEP and rigidly placed in the original E3NG v1.2 mounting coordinates.",
+      "license_url": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
+    }
+  ]
+}
