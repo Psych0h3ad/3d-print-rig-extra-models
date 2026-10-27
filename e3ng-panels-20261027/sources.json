@@ -1,0 +1,71 @@
+{
+  "schema": "e3ng-official-hex-panels-v1",
+  "asset": {
+    "name": "panels-e872278e26d8b9913bfa2fcdf9b84e7a624bc793b387582ba1b4be0253d34c90.glb",
+    "sha256": "e872278e26d8b9913bfa2fcdf9b84e7a624bc793b387582ba1b4be0253d34c90",
+    "bytes": 7577360
+  },
+  "parts": [
+    {
+      "e3ng_mod": "hex-panel-upper-left",
+      "source_sha256": "cfa505b2d03dff989e8b4545d3b79a9b813de8619ca27b93725e8e43414b915b",
+      "source_url": "https://www.printables.com/model/922401-ender-3-ng-v12-corexy-conversion",
+      "source_file_id": "4093353",
+      "source_author": "RH3D",
+      "source_license": "CC-BY-NC-SA-4.0",
+      "source_triangles": 36962,
+      "source_faces_deleted": 0,
+      "kind": "printed",
+      "supports_omitted": [],
+      "file": "electronics_panel_upper_left_dual_color.stl",
+      "revision": "E3NG v1.2 EXTRAS; official panel revision 2024-08-16",
+      "modification": "Lossless indexed STL geometry and proper rigid placement. No source facets removed. Each panel follows the printed base color."
+    },
+    {
+      "e3ng_mod": "hex-panel-upper-right",
+      "source_sha256": "0d7d47698b7385b816a23a4b72a672cf01dec68a6bb84bf19300ecbd37fa815a",
+      "source_url": "https://www.printables.com/model/922401-ender-3-ng-v12-corexy-conversion",
+      "source_file_id": "4093350",
+      "source_author": "RH3D",
+      "source_license": "CC-BY-NC-SA-4.0",
+      "source_triangles": 41748,
+      "source_faces_deleted": 0,
+      "kind": "printed",
+      "supports_omitted": [],
+      "file": "electronics_panel_upper_right_dual_color.stl",
+      "revision": "E3NG v1.2 EXTRAS; official panel revision 2024-08-16",
+      "modification": "Lossless indexed STL geometry and proper rigid placement. No source facets removed. Each panel follows the printed base color."
+    },
+    {
+      "e3ng_mod": "hex-panel-lower-left",
+      "source_sha256": "48bff9aa8ad0d9bf447e8038416ac9dd4a6cb00aba4cedbdde74abb6e52f97cf",
+      "source_url": "https://www.printables.com/model/922401-ender-3-ng-v12-corexy-conversion",
+      "source_file_id": "4093351",
+      "source_author": "RH3D",
+      "source_license": "CC-BY-NC-SA-4.0",
+      "source_triangles": 46090,
+      "source_faces_deleted": 0,
+      "kind": "printed",
+      "supports_omitted": [],
+      "file": "electronics_panel_lower_left_dual_color.stl",
+      "revision": "E3NG v1.2 EXTRAS; official panel revision 2024-08-16",
+      "modification": "Lossless indexed STL geometry and proper rigid placement. No source facets removed. Each panel follows the printed base color."
+    },
+    {
+      "e3ng_mod": "hex-panel-lower-right",
+      "source_sha256": "b325736f0beb970cec96ef30ccbc1a93b86b5c9b8e22f1e7f9549b7d99d01201",
+      "source_url": "https://www.printables.com/model/922401-ender-3-ng-v12-corexy-conversion",
+      "source_file_id": "4093352",
+      "source_author": "RH3D",
+      "source_license": "CC-BY-NC-SA-4.0",
+      "source_triangles": 25370,
+      "source_faces_deleted": 0,
+      "kind": "printed",
+      "supports_omitted": [],
+      "file": "electronics_panel_lower_right_dual_color.stl",
+      "revision": "E3NG v1.2 EXTRAS; official panel revision 2024-08-16",
+      "modification": "Lossless indexed STL geometry and proper rigid placement. No source facets removed. Each panel follows the printed base color."
+    }
+  ],
+  "license": "CC-BY-NC-SA-4.0"
+}
