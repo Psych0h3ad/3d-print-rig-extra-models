@@ -1,0 +1,49 @@
+E3NG v1.2 optional parts
+
+Synthead: reinforced toolhead base, public file 6207809 (2025-11-09)
+https://www.printables.com/model/1378246-ender-ng-3-v12-toolhead-base-with-large-reinforcem
+
+Synthead: cable-hole mount, public file 5672858 (2025-07-07)
+https://www.printables.com/model/1348213-ender-3-ng-v12-toolhead-cable-mount-with-cable-hol
+
+Based on RH3D's E3NG v1.2:
+https://www.printables.com/model/922401-ender-3-ng-v12-corexy-conversion
+
+License for both parts and their adapted Web meshes: CC BY-NC-SA 4.0
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+Changes to these two Synthead parts: tessellation of public author STEP files
+and rigid mounting transforms. No source solids reshaped; no supports removed.
+Attribution, noncommercial use and ShareAlike conditions remain applicable.
+
+RH3D: Revo-S dual-5015 duct, public STL file 4928204, E3NG v1.2.
+https://www.printables.com/model/922401-ender-3-ng-v12-corexy-conversion
+License: CC BY-NC-SA 4.0, as linked above.
+Changes: rigid placement; four built-in sacrificial print-support bodies
+(9,002 source triangles) omitted. The functional body retains its 64,298
+original triangles. No functional source surfaces reshaped.
+
+Armchair Heavy Industries: 5015 Radial Fan v3 and M3x20 SHCS.
+Archetype revision 152709791048d67aab45ea7b774cc16c2a25efd0.
+https://github.com/Armchair-Heavy-Industries/Archetype/tree/152709791048d67aab45ea7b774cc16c2a25efd0
+License: CC BY-NC-SA 4.0.
+https://github.com/Armchair-Heavy-Industries/Archetype/blob/152709791048d67aab45ea7b774cc16c2a25efd0/LICENSE
+Changes: selection of the complete source parts, tessellation and rigid placement.
+
+SnakeOilXY: M3x35 ISO 4762 screw, revision
+a98641cf6d199b7557ccc511e57664eac0d34243, source product 2812232.
+https://github.com/SnakeOilXY/SnakeOil-XY/tree/a98641cf6d199b7557ccc511e57664eac0d34243
+License: GNU GPL version 3.
+https://github.com/SnakeOilXY/SnakeOil-XY/blob/a98641cf6d199b7557ccc511e57664eac0d34243/LICENSE
+Changes: tessellation and rigid placement. Source screws use simplified threads.
+Corresponding source and license accompany the mesh in the model repository.
+
+RH3D: GM202 M3 insert, public VIRTU reference, as credited in the E3NG source
+component inventory; original source owner E3NG-head-original-GM202-holder-0.
+https://autode.sk/4AwHogK
+License: CC BY-NC-SA 4.0.
+Changes: reuse of the unchanged public component mesh with rigid placements.
+
+These components form a collection with separate licenses. Each component's
+license and attribution remain applicable; this notice does not relicense the
+collection or any original source under a single license.
