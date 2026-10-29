@@ -14,6 +14,7 @@ import urllib.request
 import zipfile
 from pathlib import Path, PurePosixPath
 import source_chunks
+import biqu_reference
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_SITE_BYTES = 900_000_000
@@ -434,11 +435,12 @@ def build(target, assets=None, elegoo_assets=None, *, layout_assets=None, source
             (stage / name).write_bytes(raw)
         reference_files = copy_versioned_references(manifest_dir, stage)
         source_files = source_chunks.install(source_plan, folder, stage, source_assets)
+        biqu_files = biqu_reference.install(manifest_dir, stage)
         total = sum(path.stat().st_size for path in stage.rglob('*') if path.is_file())
         if total > MAX_SITE_BYTES:
             raise ValueError('Site exceeds size budget')
         os.rename(stage, target)
-    result = {'files': sum(len(records) for _, records, _, _, _ in bundles) + reference_files + source_files, 'site_bytes': total, 'bundles': len(bundles)}
+    result = {'files': sum(len(records) for _, records, _, _, _ in bundles) + reference_files + source_files + biqu_files, 'site_bytes': total, 'bundles': len(bundles)}
     print(f"Built {result['files']} verified asset files from {len(bundles)} bundles ({total:,} bytes).")
     return result
 

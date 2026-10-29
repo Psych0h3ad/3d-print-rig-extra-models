@@ -1,0 +1,6 @@
+BIQU PopStation mini manufacturer CAD reference
+Manufacturer: BIQU. Exact manufacturer-supplied input SHA256: 6e9f00b74593df45f2ddeb2908392fad378df3dfc4e626392414031e384c921d.
+Web mesh distributed with permission from BIQU. Original CAD is not distributed. No broader source license is inferred.
+Closed empty cabinet reference: all 70 placed source leaves retained, including open shells and coincident source surfaces. No spools, printer, missing hardware or supports added; no source parts or supports removed. Ten exactly zero-area mesher triangles omitted.
+Neutral gray, opaque, double-sided display only: the input has no authored colors. Physical finish, transparency, mounting, load and operating clearance remain unverified. Modeled floor is the housing edge, not an installed rubber-foot datum.
+Preview merges the actual exported source triangles after rigid placement with Float32 storage; no stretching or geometric simplification.
